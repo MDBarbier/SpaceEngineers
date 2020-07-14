@@ -1,0 +1,4 @@
+﻿R e a d m e
+-----------
+
+This script sets the solar array to track the sun in two planes. When output is zero it will go into nighttime mode.
