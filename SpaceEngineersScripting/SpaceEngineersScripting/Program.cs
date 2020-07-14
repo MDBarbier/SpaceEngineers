@@ -27,8 +27,9 @@ namespace IngameScript
         public string SolarArrayVerticalRotorSuffix2 { get; set; } = "_Rotor_3";
         public List<string> SolarArrayPanelSuffixList { get; set; } = new List<string>() { "_Panel_1", "_Panel_2", "_Panel_3", "_Panel_4",
             "_Panel_5", "_Panel_6", "_Panel_7", "_Panel_8"};
-        public List<string> LcdList { get; set; } = new List<string>() { "Solar_Array_1_LCD", "Command_LCD_1" };
-        public float DesiredSolarYield { get; set; } = 120f;        
+        public string Lcd { get; set; } = "Command_LCD_1";
+        public float DesiredSolarYield { get; set; } = 120f;
+        public float NighttimeThreshold { get; set; } = 10f;
 
         /// <summary>
         /// Global properties that should not be altered manually
@@ -37,9 +38,9 @@ namespace IngameScript
         public SolarPanelStates SolarPanelState { get; set; } = SolarPanelStates.SeekingSun;
         public SolarPanelTrackingCases SolarPanelTrackingCase { get; set; } = Program.SolarPanelTrackingCases.None;
         public Utils Utilities { get; set; }
-        public List<IMyTextSurface> SurfaceList { get; set; } = new List<IMyTextSurface>();
         public float CombinedSolarOutput { get; set; } = 0.0f;
         public float AverageSolarOutput { get; set; } = 0.0f;
+        public IMyTextSurface Surface { get; set; }
 
         /// <summary>
         /// Main method
@@ -52,42 +53,17 @@ namespace IngameScript
             Utilities = new Utils(GridTerminalSystem);
 
             //Set up all the lcds in the list as panels and add to panel list
-            foreach (var lcd in LcdList)
-            {
-                var panel = Utilities.SetupPanel(lcd);
+            Surface = Utilities.SetupPanel(Lcd);
 
-                if (panel != null)
-                {
-                    SurfaceList.Add(panel);
-                }
-                else
-                {
-                    Echo($"Panel with name {lcd} not found");
-                }
-            }
-
-            //Handle error if panel not found
-            if (SurfaceList.Count == 0)
-            {
-                Echo("No lcd panel found");
-            }
-
-            //Find the horizontal rotor for the solar array
+            //Find the blocks
             var hrotor = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayHorizontalRotorSuffix);
-
-            //Find the vertical rotor for the solar array
             var vrotor1 = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayVerticalRotorSuffix1);
             var vrotor2 = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayVerticalRotorSuffix2);
 
             //handle error if rotor not found
             if (hrotor == null || vrotor1 == null || vrotor2 == null)
             {
-                foreach (var surface in SurfaceList)
-                {
-                    Utilities.WriteToPanel("VRotor/HRotor not found", surface);
-                }
-
-                return;
+                Utilities.WriteToPanel("VRotor/HRotor not found", Surface);
             }
 
             //Get rotor angles
@@ -101,7 +77,7 @@ namespace IngameScript
                 var thePanel = GridTerminalSystem.GetBlockWithName(fullName);
                 if (thePanel == null)
                 {
-                    Echo("Did not find " + SolarArrayNameBase + solarPanel);                    
+                    Echo("Did not find " + SolarArrayNameBase + solarPanel);
                 }
                 else
                 {
@@ -115,83 +91,63 @@ namespace IngameScript
             Echo($"Average (taken by dividing {CombinedSolarOutput} by {SolarArrayPanelSuffixList.Count}: {AverageSolarOutput}");
 
             //Calculate Solar Panel State
-            if (AverageSolarOutput <= 0f)
+            float velocity = 0f;
+            if (AverageSolarOutput <= NighttimeThreshold)
             {
                 SolarPanelState = SolarPanelStates.NighttimeMode;
+                velocity = 0.0f;
             }
-            else if (AverageSolarOutput > 0 && AverageSolarOutput < DesiredSolarYield - 30)
+            else if (AverageSolarOutput > NighttimeThreshold && AverageSolarOutput < DesiredSolarYield - 30)
             {
                 SolarPanelState = SolarPanelStates.SeekingSun;
+                velocity = 2.0f;
             }
             else
             {
                 SolarPanelState = SolarPanelStates.TrackingSun;
-            }
+                SolarPanelTrackingCase = SolarPanelTrackingCases.None;
 
-            float velocity = 0f;
+                //If the current reading is better and within 10 of desired
+                if (AverageSolarOutput > LastReading && AverageSolarOutput > DesiredSolarYield - 10.0f)
+                {
+                    velocity = 0.1f;
 
-            //Based on Solar Panel Stat, calculate desired velocity of horizontal rotor
-            switch (SolarPanelState)
-            {
-                case SolarPanelStates.SeekingSun:
-                    
-                        velocity = 2.0f;
-                    
-                    break;
+                    SolarPanelTrackingCase = SolarPanelTrackingCases.ImprovedWithinTen;
+                }
+                //If the current reading is better and within 50 of desired
+                else if (AverageSolarOutput > LastReading && AverageSolarOutput > DesiredSolarYield - 50.0f)
+                {
+                    velocity = 1.0f;
 
-                case SolarPanelStates.TrackingSun:
+                    SolarPanelTrackingCase = SolarPanelTrackingCases.ImprovedWithinFifty;
+                }
+                //If current reading is better but not close to desired
+                else if (AverageSolarOutput > LastReading)
+                {
+                    velocity = 2.0f;
 
-                    SolarPanelTrackingCase = SolarPanelTrackingCases.None;
-
-                    //If the current reading is better and within 10 of desired
-                    if (AverageSolarOutput > LastReading && AverageSolarOutput > DesiredSolarYield - 10.0f)
-                    {                        
-                        velocity = 0.1f;                        
-
-                        SolarPanelTrackingCase = SolarPanelTrackingCases.ImprovedWithinTen;
-                    }
-                    //If the current reading is better and within 50 of desired
-                    else if (AverageSolarOutput > LastReading && AverageSolarOutput > DesiredSolarYield - 50.0f)
-                    {   
-                        velocity = 1.0f;                        
-
-                        SolarPanelTrackingCase = SolarPanelTrackingCases.ImprovedWithinFifty;
-                    }
-                    //If current reading is better but not close to desired
-                    else if (AverageSolarOutput > LastReading)
-                    {
-                        velocity = 2.0f;                        
-
-                        SolarPanelTrackingCase = SolarPanelTrackingCases.ImprovedNotClose;
-                    }
-                    else if (AverageSolarOutput == LastReading)
-                    {
-                        velocity = 0.0f;
-
-                        SolarPanelTrackingCase = SolarPanelTrackingCases.Equal;                        
-                    }
-                    //If the current reading is less than last reading but still within 10f then reverse direction                    
-                    else if (AverageSolarOutput < LastReading && (AverageSolarOutput > LastReading - 10.0f))
-                    {
-                        velocity = -0.2f;                        
-
-                        SolarPanelTrackingCase = SolarPanelTrackingCases.WorsenedWithinTen;
-                    }
-                    else
-                    {
-                        velocity = 2.0f;                        
-
-                        SolarPanelTrackingCase = SolarPanelTrackingCases.LostSun;
-                        SolarPanelState = SolarPanelStates.SeekingSun;
-                    }
-                    break;
-
-                case SolarPanelStates.NighttimeMode:
+                    SolarPanelTrackingCase = SolarPanelTrackingCases.ImprovedNotClose;
+                }
+                else if (AverageSolarOutput == LastReading)
+                {
                     velocity = 0.0f;
-                    break;
 
-                default:
-                    break;
+                    SolarPanelTrackingCase = SolarPanelTrackingCases.Equal;
+                }
+                //If the current reading is less than last reading but still within 10f then reverse direction                    
+                else if (AverageSolarOutput < LastReading && (AverageSolarOutput > LastReading - 10.0f))
+                {
+                    velocity = -0.2f;
+
+                    SolarPanelTrackingCase = SolarPanelTrackingCases.WorsenedWithinTen;
+                }
+                else
+                {
+                    velocity = 2.0f;
+
+                    SolarPanelTrackingCase = SolarPanelTrackingCases.LostSun;
+                    SolarPanelState = SolarPanelStates.SeekingSun;
+                }
             }
 
             if (RotateAntiClockwise)
@@ -206,21 +162,19 @@ namespace IngameScript
 
             //Set the last solar panel output reading
             LastReading = AverageSolarOutput;
-            
+
             var time = Utilities.GetTime();
 
             //Output to LCD Panel
-            foreach (var surface in SurfaceList)
-            {
-                Utilities.WriteToPanel($"Solar Array 1 Online " +
+
+            Utilities.WriteToPanel($"Solar Array 1 Online " +
                     $"\n{time}" +
-                    $"\nRotor velocity: {velocity}" +                    
+                    $"\nRotor velocity: {velocity}" +
                     $"\nPanel Output: {AverageSolarOutput}kw" +
                     $"\nHRotor Angle: {horizontalRotorAngle}{(Char)176}" +
                     $"\nVRotor Angles: {verticalRotorAngle1}{(Char)176}" +
                     $"\nTracking mode: {SolarPanelState}" +
-                    $"\nTracking case: {SolarPanelTrackingCase}", surface);
-            }
+                    $"\nTracking case: {SolarPanelTrackingCase}", Surface);
         }
-    }    
+    }
 }
