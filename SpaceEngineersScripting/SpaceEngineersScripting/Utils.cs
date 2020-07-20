@@ -175,6 +175,25 @@ namespace IngameScript
                     return float.MinValue;
                 }
             }
+
+            public TimeSpan CalculateExecutionTime(TimeSpan[] executionTimes, TimeSpan averageExecution, DateTime startTime, int executionCounter)
+            {
+                var endOfScript = DateTime.Now;
+                var executionTime = endOfScript - startTime;
+                executionTimes[executionCounter] = executionTime;
+
+                foreach (var exTime in executionTimes)
+                {
+                    averageExecution += exTime;
+                }
+
+                double doubleAverageTicks = executionTimes.Average(timeSpan => timeSpan.Ticks);
+                long longAverageTicks = Convert.ToInt64(doubleAverageTicks);
+
+                averageExecution = TimeSpan.FromTicks(longAverageTicks);
+
+                return averageExecution;
+            }
         }
 
         public enum SolarPanelStates

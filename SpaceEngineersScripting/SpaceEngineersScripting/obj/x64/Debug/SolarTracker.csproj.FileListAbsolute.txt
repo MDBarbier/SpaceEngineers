@@ -290,9 +290,9 @@ C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngin
 C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\bin\tr\Microsoft.CodeAnalysis.resources.dll
 C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\bin\zh-Hans\Microsoft.CodeAnalysis.resources.dll
 C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\bin\zh-Hant\Microsoft.CodeAnalysis.resources.dll
-C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\obj\x64\Debug\SolarTracker.csprojAssemblyReference.cache
 C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\obj\x64\Debug\SpaceEngineersScripting.exe.config
 C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\obj\x64\Debug\SolarTracker.csproj.CoreCompileInputs.cache
 C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\obj\x64\Debug\SolarTracker.csproj.CopyComplete
 C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\obj\x64\Debug\SpaceEngineersScripting.exe
 C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\obj\x64\Debug\SpaceEngineersScripting.pdb
+C:\Users\matt\Documents\GitHub\SpaceEngineers\SpaceEngineersScripting\SpaceEngineersScripting\obj\x64\Debug\SolarTracker.csprojAssemblyReference.cache

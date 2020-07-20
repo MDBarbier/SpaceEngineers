@@ -2,6 +2,8 @@
 using Sandbox.ModAPI.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 
 namespace IngameScript
 {
@@ -41,6 +43,14 @@ namespace IngameScript
         public float CombinedSolarOutput { get; set; } = 0.0f;
         public float AverageSolarOutput { get; set; } = 0.0f;
         public IMyTextSurface Surface { get; set; }
+        public IMyTerminalBlock HRotor { get; set; }
+        public IMyTerminalBlock VRotor1 { get; set; }
+        public IMyTerminalBlock VRotor2 { get; set; }
+        public List<IMyTerminalBlock> SolarPanels { get; set; } = new List<IMyTerminalBlock>();
+        public DateTime StartTime { get; set; }
+        public TimeSpan[] ExecutionTimes { get; set; } = new TimeSpan[100];
+        public int ExecutionCounter { get; set; } = 0;
+        public TimeSpan AverageExecution { get; set; } = new TimeSpan();
 
         /// <summary>
         /// Main method
@@ -49,46 +59,85 @@ namespace IngameScript
         /// <param name="updateSource">supplied by game</param>
         public void Main(string argument, UpdateType updateSource)
         {
+            StartTime = DateTime.Now;
             CombinedSolarOutput = 0.0f;
-            Utilities = new Utils(GridTerminalSystem);
+            ExecutionCounter += 1;
+
+            if (ExecutionCounter == 100)
+            {
+                ExecutionCounter = 0;
+            }
+            
+            if (Utilities == null)
+            {                
+                Utilities = new Utils(GridTerminalSystem);
+            }
 
             //Set up all the lcds in the list as panels and add to panel list
-            Surface = Utilities.SetupPanel(Lcd);
+            if (Surface == null)
+            {                
+                Surface = Utilities.SetupPanel(Lcd);
+            }
 
             //Find the blocks
-            var hrotor = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayHorizontalRotorSuffix);
-            var vrotor1 = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayVerticalRotorSuffix1);
-            var vrotor2 = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayVerticalRotorSuffix2);
+            if (HRotor == null)
+            {                
+                HRotor = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayHorizontalRotorSuffix);
+            }
+
+            if (VRotor1 == null)
+            {                
+                VRotor1 = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayVerticalRotorSuffix1);
+            }
+
+            if (VRotor2 == null)
+            {                
+                VRotor2 = GridTerminalSystem.GetBlockWithName(SolarArrayNameBase + SolarArrayVerticalRotorSuffix2);
+            }
 
             //handle error if rotor not found
-            if (hrotor == null || vrotor1 == null || vrotor2 == null)
+            if (HRotor == null || VRotor1 == null || VRotor2 == null)
             {
-                Utilities.WriteToPanel("VRotor/HRotor not found", Surface);
+                Echo("One or more rotors not found, exiting");
+                return;
             }
 
             //Get rotor angles
-            var horizontalRotorAngle = Utilities.OutputRotorAngle(hrotor);
-            var verticalRotorAngle1 = Utilities.OutputRotorAngle(vrotor1);
-            var verticalRotorAngle2 = Utilities.OutputRotorAngle(vrotor2);
+            var horizontalRotorAngle = Utilities.OutputRotorAngle(HRotor);
+            var verticalRotorAngle1 = Utilities.OutputRotorAngle(VRotor1);
+            var verticalRotorAngle2 = Utilities.OutputRotorAngle(VRotor2);
 
-            foreach (var solarPanel in SolarArrayPanelSuffixList)
+            if (SolarPanels == null || SolarPanels.Count == 0)
             {
-                string fullName = SolarArrayNameBase + solarPanel;
-                var thePanel = GridTerminalSystem.GetBlockWithName(fullName);
-                if (thePanel == null)
+                foreach (var solarPanel in SolarArrayPanelSuffixList)
                 {
-                    Echo("Did not find " + SolarArrayNameBase + solarPanel);
+                    string fullName = SolarArrayNameBase + solarPanel;
+                    var thePanel = GridTerminalSystem.GetBlockWithName(fullName);
+
+                    if (thePanel == null)
+                    {
+                        Echo("Did not find " + SolarArrayNameBase + solarPanel);
+                    }
+                    else
+                    {
+                        float panelOutput = Utilities.GetSolarPanelOutput(thePanel);
+                        CombinedSolarOutput += panelOutput;
+                        SolarPanels.Add(thePanel);
+                    }
                 }
-                else
+
+            }
+            else
+            {                
+                foreach (var thePanel in SolarPanels)
                 {
                     float panelOutput = Utilities.GetSolarPanelOutput(thePanel);
-                    CombinedSolarOutput += panelOutput;
+                    CombinedSolarOutput += panelOutput;                    
                 }
             }
 
             //Calculate average output
-            AverageSolarOutput = CombinedSolarOutput / (float)SolarArrayPanelSuffixList.Count;
-            Echo($"Average (taken by dividing {CombinedSolarOutput} by {SolarArrayPanelSuffixList.Count}: {AverageSolarOutput}");
+            AverageSolarOutput = CombinedSolarOutput / (float)SolarArrayPanelSuffixList.Count;            
 
             //Calculate Solar Panel State
             float velocity = 0f;
@@ -117,14 +166,14 @@ namespace IngameScript
                 //If the current reading is better and within 50 of desired
                 else if (AverageSolarOutput > LastReading && AverageSolarOutput > DesiredSolarYield - 50.0f)
                 {
-                    velocity = 1.0f;
+                    velocity = 2.0f;
 
                     SolarPanelTrackingCase = SolarPanelTrackingCases.ImprovedWithinFifty;
                 }
                 //If current reading is better but not close to desired
                 else if (AverageSolarOutput > LastReading)
                 {
-                    velocity = 2.0f;
+                    velocity = 4.0f;
 
                     SolarPanelTrackingCase = SolarPanelTrackingCases.ImprovedNotClose;
                 }
@@ -137,13 +186,13 @@ namespace IngameScript
                 //If the current reading is less than last reading but still within 10f then reverse direction                    
                 else if (AverageSolarOutput < LastReading && (AverageSolarOutput > LastReading - 10.0f))
                 {
-                    velocity = -0.2f;
+                    velocity = -0.5f;
 
                     SolarPanelTrackingCase = SolarPanelTrackingCases.WorsenedWithinTen;
                 }
                 else
                 {
-                    velocity = 2.0f;
+                    velocity = 6.0f;
 
                     SolarPanelTrackingCase = SolarPanelTrackingCases.LostSun;
                     SolarPanelState = SolarPanelStates.SeekingSun;
@@ -156,25 +205,26 @@ namespace IngameScript
             }
 
             //Set the calculated velocity or horizontal rotor
-            hrotor.SetValueFloat("Velocity", velocity);
-            vrotor1.SetValueFloat("Velocity", velocity);
-            vrotor2.SetValueFloat("Velocity", velocity * -1);
+            HRotor.SetValueFloat("Velocity", velocity);
+            VRotor1.SetValueFloat("Velocity", velocity);
+            VRotor2.SetValueFloat("Velocity", velocity * -1);
 
             //Set the last solar panel output reading
-            LastReading = AverageSolarOutput;
+            LastReading = AverageSolarOutput;            
 
-            var time = Utilities.GetTime();
+            //Work out script execution time
+            AverageExecution = Utilities.CalculateExecutionTime(ExecutionTimes, AverageExecution, StartTime, ExecutionCounter);
 
             //Output to LCD Panel
-
             Utilities.WriteToPanel($"Solar Array 1 Online " +
-                    $"\n{time}" +
+                    $"\n{StartTime}" +
                     $"\nRotor velocity: {velocity}" +
                     $"\nPanel Output: {AverageSolarOutput}kw" +
                     $"\nHRotor Angle: {horizontalRotorAngle}{(Char)176}" +
                     $"\nVRotor Angles: {verticalRotorAngle1}{(Char)176}" +
                     $"\nTracking mode: {SolarPanelState}" +
-                    $"\nTracking case: {SolarPanelTrackingCase}", Surface);
+                    $"\nTracking case: {SolarPanelTrackingCase}" +
+                    $"\nExecution time avg ({ExecutionCounter} runs):\n {AverageExecution}", Surface);
         }
     }
 }
