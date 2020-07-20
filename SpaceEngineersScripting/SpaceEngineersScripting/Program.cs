@@ -149,7 +149,7 @@ namespace IngameScript
             else if (AverageSolarOutput > NighttimeThreshold && AverageSolarOutput < DesiredSolarYield - 30)
             {
                 SolarPanelState = SolarPanelStates.SeekingSun;
-                velocity = 2.0f;
+                velocity = 6.0f;
             }
             else
             {
